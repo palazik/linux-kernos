@@ -1,13 +1,12 @@
 # Maintainer: palazik <https://github.com/palazik>
-# Contributor: Peter Jung ptr1337 <admin@cachyos.org>
-# Based on Arch Linux linux PKGBUILD
+# Based on CachyOS linux-cachyos-bore PKGBUILD
 
 pkgbase=linux-kernos
-pkgver=7.0.3  # updated automatically by pkgver()
+pkgver=7.0.3  # bumped automatically by pkgver()
 pkgrel=1
 pkgdesc='KernOS optimized kernel - BORE + ThinLTO + CachyOS patches'
 arch=(x86_64)
-url='https://github.com/archlinux/linux'
+url='https://github.com/palazik/linux-kernos'
 license=(GPL-2.0-only)
 makedepends=(
   bc
@@ -32,52 +31,31 @@ pkgver() {
     | python3 -c "import json,sys; print(json.load(sys.stdin)['latest_stable']['version'])"
 }
 
-# NOTE: these are evaluated after makepkg re-sources with the updated pkgver
-_cachy_patch_ver="${pkgver%.*}"
-_srctag="v${pkgver}-arch1"
+# _major and _patchsource must be functions/deferred so they use the
+# updated pkgver after pkgver() runs. makepkg re-sources the PKGBUILD
+# with the new pkgver, so these top-level vars will be correct on the
+# second pass when source[] is actually evaluated.
+_major="${pkgver%.*}"
+_patchsource="https://raw.githubusercontent.com/cachyos/kernel-patches/master/${_major}"
 
 source=(
-  # Kernel tarball from kernel.org
   "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-${pkgver}.tar.xz"
-  "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-${pkgver}.tar.sign"
-
-  # Arch Linux kernel patch from GitHub releases
-  "linux-${_srctag}.patch.zst::${url}/releases/download/${_srctag}/linux-${_srctag}.patch.zst"
-  "linux-${_srctag}.patch.zst.sig::${url}/releases/download/${_srctag}/linux-${_srctag}.patch.zst.sig"
-
-  # CachyOS patches
-  "bore-cachy.patch::https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${_cachy_patch_ver}/sched/0001-bore-cachy.patch"
-  "clang-polly.patch::https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${_cachy_patch_ver}/misc/0001-clang-polly.patch"
-  "acpi-call.patch::https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${_cachy_patch_ver}/misc/0001-acpi-call.patch"
-
-  # KernOS config
+  "bore-cachy.patch::${_patchsource}/sched/0001-bore-cachy.patch"
+  "clang-polly.patch::${_patchsource}/misc/0001-clang-polly.patch"
+  "acpi-call.patch::${_patchsource}/misc/0001-acpi-call.patch"
   "config"
 )
 
-validpgpkeys=(
-  ABAF11C65A2970B130ABE3C479BE3E4300411886  # Linus Torvalds
-  647F28654894E3BD457199BE38DBBDC86092693E  # Greg Kroah-Hartman
-  83BC8889351B5DEBBB68416EB8AC08600F108CDF  # Jan Alexander Steffens (heftig)
-)
-
 sha256sums=(
-  'SKIP'  # kernel tarball
-  'SKIP'  # kernel tarball sig
-  'SKIP'  # arch patch
-  'SKIP'  # arch patch sig
-  'SKIP'  # bore-cachy
-  'SKIP'  # clang-polly
-  'SKIP'  # acpi-call
-  'SKIP'  # config
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
+  'SKIP'
 )
 
 prepare() {
   cd linux-${pkgver}
-
-  echo "Applying Arch Linux patch..."
-  # Use -f to follow symlinks that makepkg creates for renamed sources (:: syntax)
-  zstd -d -f "../linux-${_srctag}.patch.zst" -o "../linux-${_srctag}.patch"
-  patch -Np1 < "../linux-${_srctag}.patch"
 
   echo "Applying BORE scheduler..."
   patch -Np1 < ../bore-cachy.patch
@@ -94,48 +72,58 @@ prepare() {
   # KernOS version string
   scripts/config --set-str LOCALVERSION "-kernos"
 
-  # O2 optimization
-  scripts/config -e CC_OPTIMIZE_FOR_PERFORMANCE
-  scripts/config -d CC_OPTIMIZE_FOR_SIZE
+  # O3 optimization (matches CachyOS default)
+  scripts/config -d CC_OPTIMIZE_FOR_PERFORMANCE \
+                 -e CC_OPTIMIZE_FOR_PERFORMANCE_O3
 
   # ThinLTO with Clang
-  scripts/config -e LTO_CLANG_THIN
-  scripts/config -d LTO_NONE
-  scripts/config -d LTO_CLANG_FULL
+  scripts/config -e LTO_CLANG_THIN \
+                 -d LTO_NONE \
+                 -d LTO_CLANG_FULL
 
   # 1000Hz tick rate
-  scripts/config -d HZ_300
-  scripts/config -e HZ_1000
-  scripts/config --set-val HZ 1000
+  scripts/config -d HZ_300 -e HZ_1000 --set-val HZ 1000
+
+  # Full tickless
+  scripts/config -d HZ_PERIODIC -d NO_HZ_IDLE \
+                 -d CONTEXT_TRACKING_FORCE \
+                 -e NO_HZ_FULL_NODEF -e NO_HZ_FULL \
+                 -e NO_HZ -e NO_HZ_COMMON -e CONTEXT_TRACKING
 
   # Full preemption
-  scripts/config -e PREEMPT
-  scripts/config -d PREEMPT_VOLUNTARY
-  scripts/config -d PREEMPT_NONE
+  scripts/config -e PREEMPT -d PREEMPT_LAZY
 
-  # BBR3 TCP
-  scripts/config -e TCP_CONG_BBR
-  scripts/config -e NET_SCH_FQ
-  scripts/config --set-str DEFAULT_TCP_CONG bbr
-
-  # zstd compression
-  scripts/config -e KERNEL_ZSTD
-
-  # Transparent hugepages
-  scripts/config -e TRANSPARENT_HUGEPAGE
-  scripts/config -e TRANSPARENT_HUGEPAGE_ALWAYS
-  scripts/config -d TRANSPARENT_HUGEPAGE_MADVISE
+  # BORE scheduler
+  scripts/config -e SCHED_BORE
 
   # sched-ext support
   scripts/config -e SCHED_CLASS_EXT
 
+  # BBR TCP congestion control
+  scripts/config -m TCP_CONG_CUBIC \
+                 -d DEFAULT_CUBIC \
+                 -e TCP_CONG_BBR \
+                 -e DEFAULT_BBR \
+                 --set-str DEFAULT_TCP_CONG bbr \
+                 -m NET_SCH_FQ_CODEL \
+                 -e NET_SCH_FQ \
+                 -d CONFIG_DEFAULT_FQ_CODEL \
+                 -e CONFIG_DEFAULT_FQ
+
+  # zstd compression
+  scripts/config -e KERNEL_ZSTD
+
+  # Transparent hugepages - always
+  scripts/config -d TRANSPARENT_HUGEPAGE_MADVISE \
+                 -e TRANSPARENT_HUGEPAGE_ALWAYS
+
   # Disable debug bloat
-  scripts/config -d DEBUG_INFO
-  scripts/config -d DEBUG_INFO_BTF
-  scripts/config -d SLUB_DEBUG
-  scripts/config -d PM_DEBUG
-  scripts/config -d FTRACE
-  scripts/config -d KPROBES
+  scripts/config -d DEBUG_INFO \
+                 -d DEBUG_INFO_BTF \
+                 -d SLUB_DEBUG \
+                 -d PM_DEBUG \
+                 -d FTRACE \
+                 -d KPROBES
 
   make olddefconfig
 }
@@ -173,7 +161,8 @@ _package() {
   echo "linux-kernos" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
 
   echo "Installing modules..."
-  make INSTALL_MOD_PATH="${pkgdir}/usr" \
+  ZSTD_CLEVEL=19 make \
+    INSTALL_MOD_PATH="${pkgdir}/usr" \
     INSTALL_MOD_STRIP=1 \
     DEPMOD=/doesnt/exist \
     modules_install
