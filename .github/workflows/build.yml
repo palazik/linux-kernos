@@ -68,7 +68,6 @@ jobs:
           chown -R builder:builder .
           chown -R builder:builder /ccache
 
-
       - name: Build kernel
         run: |
           sudo -u builder bash -c "
