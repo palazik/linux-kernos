@@ -19,13 +19,13 @@ makedepends=(
   python
   tar
   xz
+  zstd
   clang
   llvm
   lld
 )
 options=(!strip)
 
-_kernver=${pkgver%.*}
 _cachy_patch_ver=7.0
 
 source=(
@@ -33,8 +33,8 @@ source=(
   "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-${pkgver}.tar.xz"
   "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-${pkgver}.tar.sign"
 
-  # Arch Linux kernel patch
-  "https://gitlab.archlinux.org/archlinux/packaging/packages/linux/-/raw/main/linux-${pkgver}-arch1.patch.zst"
+  # Arch Linux kernel patch (zst compressed)
+  "linux-${pkgver}-arch1.patch.zst::https://github.com/archlinux/linux/releases/download/v${pkgver}-arch1/linux-${pkgver}-arch1.patch.zst"
 
   # CachyOS patches
   "bore-cachy.patch::https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${_cachy_patch_ver}/sched/0001-bore-cachy.patch"
@@ -64,7 +64,7 @@ prepare() {
   cd linux-${pkgver}
 
   echo "Applying Arch Linux patch..."
-  patch -Np1 < ../linux-${pkgver}-arch1.patch
+  zstd -d --stdout "../linux-${pkgver}-arch1.patch.zst" | patch -Np1
 
   echo "Applying BORE scheduler..."
   patch -Np1 < ../bore-cachy.patch
