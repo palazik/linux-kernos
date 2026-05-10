@@ -54,12 +54,13 @@ jobs:
           echo "CCACHE_DIR=/ccache" >> $GITHUB_ENV
           echo "PATH=/usr/lib/ccache/bin:$PATH" >> $GITHUB_ENV
 
-      - name: Cache ccache
-        uses: actions/cache@v4
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
         with:
           path: /ccache
-          key: ccache-kernel-${{ runner.os }}-${{ hashFiles('config') }}
+          key: ccache-kernel-${{ runner.os }}-${{ hashFiles('config') }}-${{ github.run_id }}
           restore-keys: |
+            ccache-kernel-${{ runner.os }}-${{ hashFiles('config') }}-
             ccache-kernel-${{ runner.os }}-
 
       - name: Setup build user (makepkg needs non-root)
@@ -75,11 +76,20 @@ jobs:
             export CCACHE_DIR=/ccache
             export PATH=/usr/lib/ccache/bin:\$PATH
             export KBUILD_BUILD_TIMESTAMP=''
+            export KBUILD_BUILD_USER=builder
+            export KBUILD_BUILD_HOST=linux-kernos
             makepkg -s --noconfirm --skippgpcheck
           "
 
       - name: Show ccache stats
         run: ccache --show-stats
+
+      - name: Save ccache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /ccache
+          key: ccache-kernel-${{ runner.os }}-${{ hashFiles('config') }}-${{ github.run_id }}
 
       - name: Upload kernel packages
         uses: actions/upload-artifact@v4
