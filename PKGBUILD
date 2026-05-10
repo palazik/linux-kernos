@@ -1,7 +1,7 @@
 # Maintainer: palazik <https://github.com/palazik>
 # Based on CachyOS linux-cachyos-bore PKGBUILD
 
-pkgbase=linux-kernos
+pkgbase=linux
 pkgver=7.0.5
 pkgrel=1
 pkgdesc='KernOS optimized kernel - BORE + ThinLTO + CachyOS patches'
@@ -176,7 +176,24 @@ _package() {
 
   echo "Installing kernel image..."
   install -Dm644 "$(make -s image_name)" "${modulesdir}/vmlinuz"
-  echo "linux-kernos" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
+  echo "${pkgbase}" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
+
+  install -Dm644 /dev/stdin "${pkgdir}/etc/mkinitcpio.d/${pkgbase}.preset" <<EOF
+# mkinitcpio preset file for the '${pkgbase}' package
+
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-${pkgbase}"
+
+PRESETS=('default' 'fallback')
+
+default_image="/boot/initramfs-${pkgbase}.img"
+#default_uki="/efi/EFI/Linux/arch-${pkgbase}.efi"
+#default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
+
+fallback_image="/boot/initramfs-${pkgbase}-fallback.img"
+#fallback_uki="/efi/EFI/Linux/arch-${pkgbase}-fallback.efi"
+fallback_options="-S autodetect"
+EOF
 
   echo "Installing modules..."
   ZSTD_CLEVEL=19 make \
@@ -203,10 +220,10 @@ _package-headers() {
 }
 
 pkgname=(
-  linux-kernos
-  linux-kernos-headers
+  linux
+  linux-headers
 )
 
 for _p in "${pkgname[@]}"; do
-  eval "package_${_p}() { _package${_p#linux-kernos}; }"
+  eval "package_${_p}() { _package${_p#linux}; }"
 done
