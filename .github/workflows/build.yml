@@ -1,0 +1,109 @@
+name: Build KernOS Kernel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'PKGBUILD'
+      - 'config'
+      - 'patches/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update keyring and system
+        run: |
+          pacman -Sy --needed --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm
+
+      - name: Install build dependencies
+        run: |
+          pacman -S --needed --noconfirm \
+            base-devel \
+            bc \
+            cpio \
+            gettext \
+            libelf \
+            pahole \
+            perl \
+            python \
+            tar \
+            xz \
+            clang \
+            llvm \
+            lld \
+            ccache \
+            git \
+            zstd
+
+      - name: Setup ccache
+        run: |
+          mkdir -p /ccache
+          ccache --max-size=5G
+          ccache --set-config=compiler_check=content
+          echo "CCACHE_DIR=/ccache" >> $GITHUB_ENV
+          echo "PATH=/usr/lib/ccache/bin:$PATH" >> $GITHUB_ENV
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /ccache
+          key: ccache-kernel-${{ runner.os }}-${{ hashFiles('config') }}
+          restore-keys: |
+            ccache-kernel-${{ runner.os }}-
+
+      - name: Setup build user (makepkg needs non-root)
+        run: |
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+          chown -R builder:builder .
+          chown -R builder:builder /ccache
+
+      - name: Import kernel PGP keys
+        run: |
+          sudo -u builder gpg --keyserver keyserver.ubuntu.com \
+            --recv-keys ABAF11C65A2970B130ABE3C479BE3E4300411886
+          sudo -u builder gpg --keyserver keyserver.ubuntu.com \
+            --recv-keys 647F28654894E3BD457199BE38DBBDC86092693E
+
+      - name: Build kernel
+        run: |
+          sudo -u builder bash -c "
+            export CCACHE_DIR=/ccache
+            export PATH=/usr/lib/ccache/bin:\$PATH
+            export KBUILD_BUILD_TIMESTAMP=''
+            makepkg -s --noconfirm --skippgpcheck
+          "
+
+      - name: Show ccache stats
+        run: ccache --show-stats
+
+      - name: Upload kernel packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-kernos-packages
+          path: |
+            linux-kernos-*.pkg.tar.zst
+            linux-kernos-headers-*.pkg.tar.zst
+          retention-days: 30
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: kernel-${{ github.run_number }}
+          name: KernOS Kernel Build ${{ github.run_number }}
+          files: |
+            linux-kernos-*.pkg.tar.zst
+            linux-kernos-headers-*.pkg.tar.zst
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
