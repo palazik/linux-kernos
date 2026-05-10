@@ -158,6 +158,7 @@ build() {
 
 _package() {
   pkgdesc="KernOS optimized kernel"
+  install=linux.install
   depends=(coreutils kmod initramfs)
   optdepends=(
     'wireless-regdb: to set the correct wireless channels of your country'
@@ -177,23 +178,6 @@ _package() {
   echo "Installing kernel image..."
   install -Dm644 "$(make -s image_name)" "${modulesdir}/vmlinuz"
   echo "${pkgbase}" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
-
-  install -Dm644 /dev/stdin "${pkgdir}/etc/mkinitcpio.d/${pkgbase}.preset" <<EOF
-# mkinitcpio preset file for the '${pkgbase}' package
-
-ALL_config="/etc/mkinitcpio.conf"
-ALL_kver="/boot/vmlinuz-${pkgbase}"
-
-PRESETS=('default' 'fallback')
-
-default_image="/boot/initramfs-${pkgbase}.img"
-#default_uki="/efi/EFI/Linux/arch-${pkgbase}.efi"
-#default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
-
-fallback_image="/boot/initramfs-${pkgbase}-fallback.img"
-#fallback_uki="/efi/EFI/Linux/arch-${pkgbase}-fallback.efi"
-fallback_options="-S autodetect"
-EOF
 
   echo "Installing modules..."
   ZSTD_CLEVEL=19 make \
