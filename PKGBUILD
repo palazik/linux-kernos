@@ -2,11 +2,11 @@
 # Based on CachyOS linux-cachyos-bore PKGBUILD
 
 pkgbase=linux-kernos
-pkgver=7.0.3  # bumped automatically by pkgver()
+pkgver=7.0.5
 pkgrel=1
 pkgdesc='KernOS optimized kernel - BORE + ThinLTO + CachyOS patches'
 arch=(x86_64)
-url='https://github.com/palazik/linux-kernos'
+url='https://github.com/CachyOS/linux-cachyos'
 license=(GPL-2.0-only)
 makedepends=(
   bc
@@ -26,23 +26,35 @@ makedepends=(
 )
 options=(!strip)
 
+# pkgver() fetches the latest stable CachyOS linux release tag
+# (format: cachyos-X.Y.Z-N) and extracts X.Y.Z as pkgver.
+# We intentionally track CachyOS releases, NOT kernel.org directly,
+# because bore-cachy.patch is written against CachyOS's pre-patched tree.
 pkgver() {
-  curl -s https://www.kernel.org/releases.json \
-    | python3 -c "import json,sys; print(json.load(sys.stdin)['latest_stable']['version'])"
+  curl -s "https://github.com/CachyOS/linux/releases" \
+    | grep -o 'cachyos-[0-9][^"&<]*' \
+    | grep -v '\-rc' \
+    | sort -V \
+    | tail -1 \
+    | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+'
 }
 
-# _major and _patchsource must be functions/deferred so they use the
-# updated pkgver after pkgver() runs. makepkg re-sources the PKGBUILD
-# with the new pkgver, so these top-level vars will be correct on the
-# second pass when source[] is actually evaluated.
+# These are re-evaluated after makepkg re-sources with the updated pkgver
 _major="${pkgver%.*}"
+_tagrel=1
+_srcname="cachyos-${pkgver}-${_tagrel}"
 _patchsource="https://raw.githubusercontent.com/cachyos/kernel-patches/master/${_major}"
 
 source=(
-  "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-${pkgver}.tar.xz"
+  # CachyOS pre-patched kernel tree — bore-cachy.patch is written against this, not vanilla
+  "https://github.com/CachyOS/linux/releases/download/${_srcname}/${_srcname}.tar.gz"
+
+  # CachyOS patches
   "bore-cachy.patch::${_patchsource}/sched/0001-bore-cachy.patch"
   "clang-polly.patch::${_patchsource}/misc/0001-clang-polly.patch"
   "acpi-call.patch::${_patchsource}/misc/0001-acpi-call.patch"
+
+  # KernOS config
   "config"
 )
 
@@ -55,7 +67,7 @@ sha256sums=(
 )
 
 prepare() {
-  cd linux-${pkgver}
+  cd "${_srcname}"
 
   echo "Applying BORE scheduler..."
   patch -Np1 < ../bore-cachy.patch
@@ -72,7 +84,7 @@ prepare() {
   # KernOS version string
   scripts/config --set-str LOCALVERSION "-kernos"
 
-  # O3 optimization (matches CachyOS default)
+  # O3 optimization
   scripts/config -d CC_OPTIMIZE_FOR_PERFORMANCE \
                  -e CC_OPTIMIZE_FOR_PERFORMANCE_O3
 
@@ -129,7 +141,7 @@ prepare() {
 }
 
 build() {
-  cd linux-${pkgver}
+  cd "${_srcname}"
 
   make -j$(nproc) \
     CC=clang \
@@ -149,7 +161,7 @@ _package() {
   )
   provides=(VIRTUALBOX-GUEST-MODULES WIREGUARD-MODULE KSMBD-MODULE)
 
-  cd linux-${pkgver}
+  cd "${_srcname}"
 
   local kernver="$(<version)"
   local modulesdir="${pkgdir}/usr/lib/modules/${kernver}"
@@ -174,7 +186,7 @@ _package-headers() {
   pkgdesc="KernOS optimized kernel headers"
   depends=(pahole)
 
-  cd linux-${pkgver}
+  cd "${_srcname}"
   local kernver="$(<version)"
   local builddir="${pkgdir}/usr/lib/modules/${kernver}/build"
 
