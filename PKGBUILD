@@ -3,7 +3,7 @@
 # Based on Arch Linux linux PKGBUILD
 
 pkgbase=linux-kernos
-pkgver=7.0.5
+pkgver=7.0.3  # updated automatically by pkgver()
 pkgrel=1
 pkgdesc='KernOS optimized kernel - BORE + ThinLTO + CachyOS patches'
 arch=(x86_64)
@@ -12,6 +12,7 @@ license=(GPL-2.0-only)
 makedepends=(
   bc
   cpio
+  curl
   gettext
   libelf
   pahole
@@ -26,10 +27,13 @@ makedepends=(
 )
 options=(!strip)
 
-# Automatically derive major.minor for CachyOS patches
-_cachy_patch_ver="${pkgver%.*}"
+pkgver() {
+  curl -s https://www.kernel.org/releases.json \
+    | python3 -c "import json,sys; print(json.load(sys.stdin)['latest_stable']['version'])"
+}
 
-# Arch srctag — always arch1
+# NOTE: these are evaluated after makepkg re-sources with the updated pkgver
+_cachy_patch_ver="${pkgver%.*}"
 _srctag="v${pkgver}-arch1"
 
 source=(
@@ -71,7 +75,9 @@ prepare() {
   cd linux-${pkgver}
 
   echo "Applying Arch Linux patch..."
-  zstd -d --stdout "../linux-${_srctag}.patch.zst" | patch -Np1
+  # Use -f to follow symlinks that makepkg creates for renamed sources (:: syntax)
+  zstd -d -f "../linux-${_srctag}.patch.zst" -o "../linux-${_srctag}.patch"
+  patch -Np1 < "../linux-${_srctag}.patch"
 
   echo "Applying BORE scheduler..."
   patch -Np1 < ../bore-cachy.patch
