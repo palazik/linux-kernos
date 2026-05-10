@@ -100,6 +100,13 @@ jobs:
             linux-kernos-headers-*.pkg.tar.zst
           retention-days: 30
 
+      - name: Create pacman repo database
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          repo-add kernos.db.tar.gz linux-kernos-*.pkg.tar.zst
+          ln -sf kernos.db.tar.gz kernos.db
+          ln -sf kernos.files.tar.gz kernos.files
+
       - name: Create Release
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: softprops/action-gh-release@v2
@@ -109,5 +116,9 @@ jobs:
           files: |
             linux-kernos-*.pkg.tar.zst
             linux-kernos-headers-*.pkg.tar.zst
+            kernos.db.tar.gz
+            kernos.db
+            kernos.files.tar.gz
+            kernos.files
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
