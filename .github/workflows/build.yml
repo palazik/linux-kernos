@@ -68,12 +68,6 @@ jobs:
           chown -R builder:builder .
           chown -R builder:builder /ccache
 
-      - name: Import kernel PGP keys
-        run: |
-          sudo -u builder gpg --keyserver keyserver.ubuntu.com \
-            --recv-keys ABAF11C65A2970B130ABE3C479BE3E4300411886
-          sudo -u builder gpg --keyserver keyserver.ubuntu.com \
-            --recv-keys 647F28654894E3BD457199BE38DBBDC86092693E
 
       - name: Build kernel
         run: |
