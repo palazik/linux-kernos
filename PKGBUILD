@@ -3,11 +3,11 @@
 # Based on Arch Linux linux PKGBUILD
 
 pkgbase=linux-kernos
-pkgver=7.0.3
+pkgver=7.0.5
 pkgrel=1
 pkgdesc='KernOS optimized kernel - BORE + ThinLTO + CachyOS patches'
 arch=(x86_64)
-url='https://github.com/palazik/linux-kernos'
+url='https://github.com/archlinux/linux'
 license=(GPL-2.0-only)
 makedepends=(
   bc
@@ -26,15 +26,20 @@ makedepends=(
 )
 options=(!strip)
 
-_cachy_patch_ver=7.0
+# Automatically derive major.minor for CachyOS patches
+_cachy_patch_ver="${pkgver%.*}"
+
+# Arch srctag — always arch1
+_srctag="v${pkgver}-arch1"
 
 source=(
   # Kernel tarball from kernel.org
   "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-${pkgver}.tar.xz"
   "https://cdn.kernel.org/pub/linux/kernel/v${pkgver%%.*}.x/linux-${pkgver}.tar.sign"
 
-  # Arch Linux kernel patch (zst compressed)
-  "linux-${pkgver}-arch1.patch.zst::https://github.com/archlinux/linux/releases/download/v${pkgver}-arch1/linux-${pkgver}-arch1.patch.zst"
+  # Arch Linux kernel patch from GitHub releases
+  "linux-${_srctag}.patch.zst::${url}/releases/download/${_srctag}/linux-${_srctag}.patch.zst"
+  "linux-${_srctag}.patch.zst.sig::${url}/releases/download/${_srctag}/linux-${_srctag}.patch.zst.sig"
 
   # CachyOS patches
   "bore-cachy.patch::https://raw.githubusercontent.com/CachyOS/kernel-patches/master/${_cachy_patch_ver}/sched/0001-bore-cachy.patch"
@@ -48,12 +53,14 @@ source=(
 validpgpkeys=(
   ABAF11C65A2970B130ABE3C479BE3E4300411886  # Linus Torvalds
   647F28654894E3BD457199BE38DBBDC86092693E  # Greg Kroah-Hartman
+  83BC8889351B5DEBBB68416EB8AC08600F108CDF  # Jan Alexander Steffens (heftig)
 )
 
 sha256sums=(
   'SKIP'  # kernel tarball
   'SKIP'  # kernel tarball sig
   'SKIP'  # arch patch
+  'SKIP'  # arch patch sig
   'SKIP'  # bore-cachy
   'SKIP'  # clang-polly
   'SKIP'  # acpi-call
@@ -64,7 +71,7 @@ prepare() {
   cd linux-${pkgver}
 
   echo "Applying Arch Linux patch..."
-  zstd -d --stdout "../linux-${pkgver}-arch1.patch.zst" | patch -Np1
+  zstd -d --stdout "../linux-${_srctag}.patch.zst" | patch -Np1
 
   echo "Applying BORE scheduler..."
   patch -Np1 < ../bore-cachy.patch
@@ -173,7 +180,8 @@ _package-headers() {
   depends=(pahole)
 
   cd linux-${pkgver}
-  local builddir="${pkgdir}/usr/lib/modules/${pkgver}-kernos/build"
+  local kernver="$(<version)"
+  local builddir="${pkgdir}/usr/lib/modules/${kernver}/build"
 
   echo "Installing headers..."
   make INSTALL_HDR_PATH="${builddir}" headers_install
