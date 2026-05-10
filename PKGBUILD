@@ -39,20 +39,19 @@ pkgver() {
     | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+'
 }
 
-# These are re-evaluated after makepkg re-sources with the updated pkgver
-_major="${pkgver%.*}"
 _tagrel=1
-_srcname="cachyos-${pkgver}-${_tagrel}"
-_patchsource="https://raw.githubusercontent.com/cachyos/kernel-patches/master/${_major}"
+# NOTE: _major, _srcname, _patchsource are intentionally computed inside each
+# function body so they reflect the pkgver resolved by pkgver() at build time.
 
 source=(
   # CachyOS pre-patched kernel tree — bore-cachy.patch is written against this, not vanilla
-  "https://github.com/CachyOS/linux/releases/download/${_srcname}/${_srcname}.tar.gz"
+  # _srcname is resolved via pkgver() before makepkg fetches sources
+  "https://github.com/CachyOS/linux/releases/download/cachyos-${pkgver}-${_tagrel}/cachyos-${pkgver}-${_tagrel}.tar.gz"
 
-  # CachyOS patches
-  "bore-cachy.patch::${_patchsource}/sched/0001-bore-cachy.patch"
-  "clang-polly.patch::${_patchsource}/misc/0001-clang-polly.patch"
-  "acpi-call.patch::${_patchsource}/misc/0001-acpi-call.patch"
+  # CachyOS patches — use pkgver directly so URLs resolve after pkgver() runs
+  "bore-cachy.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/sched/0001-bore-cachy.patch"
+  "clang-polly.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/misc/0001-clang-polly.patch"
+  "acpi-call.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/misc/0001-acpi-call.patch"
 
   # KernOS config
   "config"
@@ -67,6 +66,7 @@ sha256sums=(
 )
 
 prepare() {
+  local _srcname="cachyos-${pkgver}-${_tagrel}"
   cd "${_srcname}"
 
   echo "Applying BORE scheduler..."
@@ -138,9 +138,13 @@ prepare() {
                  -d KPROBES
 
   make olddefconfig
+
+  # Generate the version file used by _package() to determine the module dir
+  make -s kernelrelease > version
 }
 
 build() {
+  local _srcname="cachyos-${pkgver}-${_tagrel}"
   cd "${_srcname}"
 
   make -j$(nproc) \
@@ -161,6 +165,7 @@ _package() {
   )
   provides=(VIRTUALBOX-GUEST-MODULES WIREGUARD-MODULE KSMBD-MODULE)
 
+  local _srcname="cachyos-${pkgver}-${_tagrel}"
   cd "${_srcname}"
 
   local kernver="$(<version)"
@@ -179,13 +184,14 @@ _package() {
     DEPMOD=/doesnt/exist \
     modules_install
 
-  rm "${modulesdir}/build"
+  rm -f "${modulesdir}/build"
 }
 
 _package-headers() {
   pkgdesc="KernOS optimized kernel headers"
   depends=(pahole)
 
+  local _srcname="cachyos-${pkgver}-${_tagrel}"
   cd "${_srcname}"
   local kernver="$(<version)"
   local builddir="${pkgdir}/usr/lib/modules/${kernver}/build"
