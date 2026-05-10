@@ -36,6 +36,7 @@ jobs:
             pahole \
             perl \
             python \
+            rsync \
             tar \
             xz \
             clang \

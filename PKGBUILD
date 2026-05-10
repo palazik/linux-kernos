@@ -17,6 +17,7 @@ makedepends=(
   pahole
   perl
   python
+  rsync
   tar
   xz
   zstd
