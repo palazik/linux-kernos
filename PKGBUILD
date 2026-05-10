@@ -126,6 +126,31 @@ prepare() {
   # zstd compression
   scripts/config -e KERNEL_ZSTD
 
+  # ArchISO live media support
+  scripts/config -e BLOCK \
+                 -e NET \
+                 -e INET \
+                 -m BLK_DEV_LOOP \
+                 -m BLK_DEV_NBD \
+                 -m BLK_DEV_DM \
+                 -m DM_SNAPSHOT \
+                 -m SCSI \
+                 -m CDROM \
+                 -m BLK_DEV_SR \
+                 -m OVERLAY_FS \
+                 -m SQUASHFS \
+                 -m ISO9660_FS \
+                 -m MTD \
+                 -m MTD_PHRAM \
+                 -m MTD_BLOCK \
+                 -e NETWORK_FILESYSTEMS \
+                 -m NFS_FS \
+                 -e USB_SUPPORT \
+                 -m USB \
+                 -m HID \
+                 -m USB_HID \
+                 -m HID_GENERIC
+
   # Transparent hugepages - always
   scripts/config -d TRANSPARENT_HUGEPAGE_MADVISE \
                  -e TRANSPARENT_HUGEPAGE_ALWAYS
