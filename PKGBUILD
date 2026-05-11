@@ -132,6 +132,7 @@ prepare() {
                  -e INET \
                  -m BLK_DEV_LOOP \
                  -m BLK_DEV_NBD \
+                 -e MD \
                  -m BLK_DEV_DM \
                  -m DM_SNAPSHOT \
                  -m SCSI \
