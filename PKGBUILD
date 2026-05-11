@@ -47,13 +47,9 @@ source=(
   "bore-cachy.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/sched/0001-bore-cachy.patch"
   "clang-polly.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/misc/0001-clang-polly.patch"
   "acpi-call.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/misc/0001-acpi-call.patch"
-
-  # KernOS config
-  "config"
 )
 
 sha256sums=(
-  'SKIP'
   'SKIP'
   'SKIP'
   'SKIP'
@@ -74,7 +70,12 @@ prepare() {
   patch -Np1 < ../acpi-call.patch
 
   echo "Setting up KernOS config..."
-  cp ../config .config
+  curl -fL "https://raw.githubusercontent.com/CachyOS/linux-cachyos/master/linux-cachyos-bore/config" -o .config
+
+  if ! grep -q '^CONFIG_' .config; then
+    echo "Downloaded config does not look like a kernel config" >&2
+    return 1
+  fi
 
   # KernOS version string
   scripts/config --set-str LOCALVERSION "-kernos"
