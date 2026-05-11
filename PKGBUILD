@@ -2,7 +2,17 @@
 # Based on CachyOS linux-cachyos-bore PKGBUILD
 
 pkgbase=linux
-pkgver=7.0.5
+
+_latest_cachyos_pkgver() {
+  curl -fsSL "https://github.com/CachyOS/linux/releases" \
+    | grep -o 'cachyos-[0-9][^"&<]*' \
+    | grep -v '\-rc' \
+    | sort -V \
+    | tail -1 \
+    | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+'
+}
+
+pkgver="${KERNOS_KERNEL_VERSION:-$(_latest_cachyos_pkgver)}"
 pkgrel=1
 pkgdesc='KernOS optimized kernel - BORE + ThinLTO + CachyOS patches'
 arch=(x86_64)
@@ -27,29 +37,13 @@ makedepends=(
 )
 options=(!strip)
 
-# pkgver() fetches the latest stable CachyOS linux release tag
-# (format: cachyos-X.Y.Z-N) and extracts X.Y.Z as pkgver.
-# We intentionally track CachyOS releases, NOT kernel.org directly,
-# because bore-cachy.patch is written against CachyOS's pre-patched tree.
-pkgver() {
-  curl -s "https://github.com/CachyOS/linux/releases" \
-    | grep -o 'cachyos-[0-9][^"&<]*' \
-    | grep -v '\-rc' \
-    | sort -V \
-    | tail -1 \
-    | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+'
-}
-
 _tagrel=1
-# NOTE: _major, _srcname, _patchsource are intentionally computed inside each
-# function body so they reflect the pkgver resolved by pkgver() at build time.
 
 source=(
   # CachyOS pre-patched kernel tree — bore-cachy.patch is written against this, not vanilla
-  # _srcname is resolved via pkgver() before makepkg fetches sources
   "https://github.com/CachyOS/linux/releases/download/cachyos-${pkgver}-${_tagrel}/cachyos-${pkgver}-${_tagrel}.tar.gz"
 
-  # CachyOS patches — use pkgver directly so URLs resolve after pkgver() runs
+  # CachyOS patches
   "bore-cachy.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/sched/0001-bore-cachy.patch"
   "clang-polly.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/misc/0001-clang-polly.patch"
   "acpi-call.patch::https://raw.githubusercontent.com/cachyos/kernel-patches/master/${pkgver%.*}/misc/0001-acpi-call.patch"
