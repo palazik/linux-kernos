@@ -130,7 +130,7 @@ prepare() {
   scripts/config -e BLOCK \
                  -e NET \
                  -e INET \
-                 -m BLK_DEV_LOOP \
+                 -e BLK_DEV_LOOP \
                  -m BLK_DEV_NBD \
                  -e MD \
                  -m BLK_DEV_DM \
@@ -139,8 +139,8 @@ prepare() {
                  -m CDROM \
                  -m BLK_DEV_SR \
                  -m OVERLAY_FS \
-                 -m SQUASHFS \
-                 -m ISO9660_FS \
+                 -e SQUASHFS \
+                 -e ISO9660_FS \
                  -m MTD \
                  -m MTD_PHRAM \
                  -m MTD_BLOCK \
@@ -203,6 +203,7 @@ _package() {
 
   echo "Installing kernel image..."
   install -Dm644 "$(make -s image_name)" "${modulesdir}/vmlinuz"
+  install -Dm644 "$(make -s image_name)" "${pkgdir}/boot/vmlinuz-${pkgbase}"
   echo "${pkgbase}" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
 
   echo "Installing modules..."
