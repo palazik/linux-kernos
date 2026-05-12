@@ -91,43 +91,16 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           repo-add kernos.db.tar.gz linux-*.pkg.tar.zst
-          ln -sf kernos.db.tar.gz    kernos.db
+          ln -sf kernos.db.tar.gz kernos.db
           ln -sf kernos.files.tar.gz kernos.files
-
-      - name: Get package version
-        if: github.ref == 'refs/heads/main'
-        id: pkgver
-        run: |
-          VER=$(ls linux-*.pkg.tar.zst | grep -oP '\d+\.\d+\.\d+' | head -1)
-          echo "version=${VER}" >> $GITHUB_OUTPUT
 
       - name: Create Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: kernel-${{ steps.pkgver.outputs.version }}-${{ github.run_number }}
-          name: KernOS Kernel ${{ steps.pkgver.outputs.version }} (Build ${{ github.run_number }})
-          body: |
-            ## KernOS Kernel ${{ steps.pkgver.outputs.version }}
-
-            Built from CachyOS sources with KernOS patches:
-            - BORE scheduler + sched-ext
-            - ThinLTO (Clang)
-            - O3 optimisation
-            - 1000Hz tick rate + full tickless
-            - Full preemption
-            - BBR TCP congestion control
-
-            ### Install / Update
-            ```ini
-            # /etc/pacman.conf — add if not present:
-            [kernos]
-            SigLevel = Optional TrustAll
-            Server = https://github.com/palazik/linux-kernos/releases/latest/download
-            ```
-            ```bash
-            sudo pacman -Syu linux linux-headers
-            ```
+          tag_name: kernel
+          name: KernOS Kernel (latest)
+          body: "Built from CachyOS sources with KernOS patches."
           files: |
             linux-*.pkg.tar.zst
             kernos.db.tar.gz

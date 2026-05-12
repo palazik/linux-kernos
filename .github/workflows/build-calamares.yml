@@ -1,0 +1,58 @@
+name: Build Calamares
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+
+    steps:
+      - name: Update keyring and system
+        run: |
+          pacman -Sy --needed --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm
+
+      - name: Install dependencies
+        run: |
+          pacman -S --needed --noconfirm base-devel git sudo
+
+      - name: Create build user
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+      - name: Build calamares from AUR
+        run: |
+          su builder -c "
+            git clone https://aur.archlinux.org/calamares.git /tmp/calamares
+            cd /tmp/calamares
+            makepkg -s --noconfirm
+          "
+
+      - name: Create repo database
+        run: |
+          mkdir -p /tmp/repo
+          cp /tmp/calamares/*.pkg.tar.zst /tmp/repo/
+          cd /tmp/repo
+          repo-add kernos.db.tar.gz *.pkg.tar.zst
+          ln -sf kernos.db.tar.gz kernos.db
+          ln -sf kernos.files.tar.gz kernos.files
+
+      - name: Publish to calamares tag
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: calamares
+          name: Calamares (latest)
+          body: "Pre-built calamares installer for KernOS."
+          files: /tmp/repo/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
