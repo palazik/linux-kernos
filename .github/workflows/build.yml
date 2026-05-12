@@ -1,4 +1,4 @@
-name: Build KernOS Kernel
+name: Build & Release KernOS Kernel
 
 on:
   push:
@@ -6,7 +6,13 @@ on:
     paths:
       - 'PKGBUILD'
       - 'patches/**'
+      - 'generate-config.sh'
   workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: 'Override kernel version (e.g. 6.14.5). Leave empty to auto-detect.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -30,23 +36,8 @@ jobs:
       - name: Install build dependencies
         run: |
           pacman -S --needed --noconfirm \
-            base-devel \
-            bc \
-            cpio \
-            gettext \
-            libelf \
-            pahole \
-            perl \
-            python \
-            rsync \
-            tar \
-            xz \
-            clang \
-            llvm \
-            lld \
-            ccache \
-            git \
-            zstd
+            base-devel bc cpio gettext libelf pahole perl python \
+            rsync tar xz clang llvm lld ccache git zstd curl
 
       - name: Setup ccache
         run: |
@@ -65,14 +56,16 @@ jobs:
             ccache-kernel-${{ runner.os }}-${{ hashFiles('PKGBUILD') }}-
             ccache-kernel-${{ runner.os }}-
 
-      - name: Setup build user (makepkg needs non-root)
+      - name: Setup build user
         run: |
           useradd -m builder
           echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
           chown -R builder:builder .
           chown -R builder:builder /ccache
 
-      - name: Build kernel
+      - name: Build kernel packages
+        env:
+          KERNOS_KERNEL_VERSION: ${{ github.event.inputs.kernel_version }}
         run: |
           sudo -u builder bash -c "
             export CCACHE_DIR=/ccache
@@ -80,7 +73,8 @@ jobs:
             export KBUILD_BUILD_TIMESTAMP=''
             export KBUILD_BUILD_USER=builder
             export KBUILD_BUILD_HOST=linux-kernos
-            makepkg -s --noconfirm --skippgpcheck
+            export KERNOS_KERNEL_VERSION='${KERNOS_KERNEL_VERSION}'
+            makepkg -s --noconfirm --skippgpcheck 2>&1
           "
 
       - name: Show ccache stats
@@ -93,27 +87,47 @@ jobs:
           path: /ccache
           key: ccache-kernel-${{ runner.os }}-${{ hashFiles('PKGBUILD') }}-${{ github.run_id }}
 
-      - name: Upload kernel packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-packages
-          path: |
-            linux-*.pkg.tar.zst
-          retention-days: 30
-
-      - name: Create pacman repo database
+      - name: Build pacman repo database
         if: github.ref == 'refs/heads/main'
         run: |
           repo-add kernos.db.tar.gz linux-*.pkg.tar.zst
-          ln -sf kernos.db.tar.gz kernos.db
+          ln -sf kernos.db.tar.gz    kernos.db
           ln -sf kernos.files.tar.gz kernos.files
+
+      - name: Get package version
+        if: github.ref == 'refs/heads/main'
+        id: pkgver
+        run: |
+          VER=$(ls linux-*.pkg.tar.zst | grep -oP '\d+\.\d+\.\d+' | head -1)
+          echo "version=${VER}" >> $GITHUB_OUTPUT
 
       - name: Create Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: kernel-${{ github.run_number }}
-          name: KernOS Kernel Build ${{ github.run_number }}
+          tag_name: kernel-${{ steps.pkgver.outputs.version }}-${{ github.run_number }}
+          name: KernOS Kernel ${{ steps.pkgver.outputs.version }} (Build ${{ github.run_number }})
+          body: |
+            ## KernOS Kernel ${{ steps.pkgver.outputs.version }}
+
+            Built from CachyOS sources with KernOS patches:
+            - BORE scheduler + sched-ext
+            - ThinLTO (Clang)
+            - O3 optimisation
+            - 1000Hz tick rate + full tickless
+            - Full preemption
+            - BBR TCP congestion control
+
+            ### Install / Update
+            ```ini
+            # /etc/pacman.conf — add if not present:
+            [kernos]
+            SigLevel = Optional TrustAll
+            Server = https://github.com/palazik/linux-kernos/releases/latest/download
+            ```
+            ```bash
+            sudo pacman -Syu linux linux-headers
+            ```
           files: |
             linux-*.pkg.tar.zst
             kernos.db.tar.gz
@@ -122,3 +136,11 @@ jobs:
             kernos.files
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact (non-main)
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages-pr-${{ github.run_number }}
+          path: linux-*.pkg.tar.zst
+          retention-days: 14
