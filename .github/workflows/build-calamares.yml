@@ -36,6 +36,8 @@ jobs:
             git clone https://aur.archlinux.org/calamares.git /tmp/calamares
             cd /tmp/calamares
             sed -i 's/-DSKIP_MODULES=.*\"/-DSKIP_MODULES=\"\"/' PKGBUILD
+            sed -i 's/-DWITH_PYTHON=OFF/-DWITH_PYTHON=ON/' PKGBUILD
+            sed -i 's/-DWITH_PYBIND11=OFF/-DWITH_PYBIND11=ON/' PKGBUILD
             makepkg -s --noconfirm
           "
 
