@@ -35,6 +35,7 @@ jobs:
           su builder -c "
             git clone https://aur.archlinux.org/calamares.git /tmp/calamares
             cd /tmp/calamares
+            sed -i 's/-DSKIP_MODULES=.*\"/-DSKIP_MODULES=\"\"/' PKGBUILD
             makepkg -s --noconfirm
           "
 
